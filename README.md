@@ -1,5 +1,5 @@
 # Description
-
+An implementation proposal for the [foobartory exercice (FR)](brief.md)
 ## Getting Started
 
 This project is intended to be used with the latest Active LTS release of [Node.js][nodejs].
@@ -14,6 +14,21 @@ cd foobartory
 npm install
 ```
 
+### Run
+Start the project
+
+```sh
+npm run build
+npm start
+```
+
+A simple UI/output to the console will display the current progression and stops as soon as the goal is reached.
+
+### Configuration
+Some global *game* parameters can be changed in `world-parameters.ts`
+Especially:
+- `WORLD_SPEED`: speed factor, default to 1: 1 sec in game = 1 sec in real life
+
 ## Available Scripts
 
 - `clean` - remove coverage data, Jest cache and transpiled files,
@@ -27,7 +42,7 @@ npm install
 ## TODO
 - Better UI in the terminal, ex: https://github.com/cronvel/terminal-kit
 - Add Typed Event: https://basarat.gitbook.io/typescript/main-1/typed-event
-- Add some tests
+- Add some tests (bank account, factory and event pulication)
 
 ## License
 
