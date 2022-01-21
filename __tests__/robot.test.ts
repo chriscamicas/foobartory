@@ -1,25 +1,25 @@
 import { Factory } from '../src/factory';
-import { mocked, MockedObjectDeep, MockedFunction } from 'jest-mock';
+import { mocked, MockedObjectDeep } from 'jest-mock';
 import { Robot } from '../src/robot';
-import { wait } from '../src/wait';
+import { Clock } from '../src/clock';
 import { Workstation } from '../src/workstation';
 import { Stock } from '../src/stock/stock';
 import { FooQuantity } from '../src/stock/foo-quantity';
 import { BarQuantity } from '../src/stock/bar-quantity';
 import { FoobarQuantity } from '../src/stock/foobar-quantity';
 import { BankAccount } from '../src/bank-account';
-import { WORLD_SPEED, FOOBAR_SELLING_PRICE } from '../src/world-parameters';
+import { FOOBAR_SELLING_PRICE } from '../src/world-parameters';
 
 jest.mock('../src/stock/stock');
 jest.mock('../src/bank-account');
 jest.mock('../src/factory');
-jest.mock('../src/wait');
+jest.mock('../src/clock');
 jest.mock('../src/math/random-between');
 
 let mockedBankAccount: MockedObjectDeep<typeof BankAccount>;
 let mockedStock: MockedObjectDeep<typeof Stock>;
 let mockedFactory: MockedObjectDeep<typeof Factory>;
-let mockedWait: MockedFunction<(ms: number) => Promise<unknown>>;
+let mockedClock: MockedObjectDeep<typeof Clock>;
 
 describe('Robot', () => {
   let factory: Factory;
@@ -29,21 +29,22 @@ describe('Robot', () => {
     mockedBankAccount = mocked(BankAccount, true);
     mockedStock = mocked(Stock, true);
     mockedFactory = mocked(Factory, true);
+    mockedClock = mocked(Clock, true);
 
-    mockedWait = mocked(wait);
   });
 
   beforeEach(() => {
     mockedBankAccount.mockClear();
     mockedStock.mockClear();
     mockedFactory.mockClear();
-    mockedWait.mockClear();
+    mockedClock.mockClear();
 
     const fooStock = new Stock(FooQuantity);
     const barStock = new Stock(BarQuantity);
     const foobarStock = new Stock(FoobarQuantity);
     const bankAccount = new BankAccount();
-    factory = new Factory(fooStock, barStock, foobarStock, bankAccount);
+    const clock = new Clock();
+    factory = new Factory(fooStock, barStock, foobarStock, bankAccount, clock);
 
     robot = new Robot(factory);
   });
@@ -52,21 +53,21 @@ describe('Robot', () => {
     await robot.mineAndStoreFoo();
 
     expect(factory.storeFoo).toHaveBeenCalledWith(new FooQuantity(1));
-    expect(mockedWait).toHaveBeenCalledWith(1000 / WORLD_SPEED);
+    expect(factory.wait).toHaveBeenCalledWith(1000);
   });
 
   it('mine bar', async () => {
     await robot.mineAndStoreBar();
 
     expect(factory.storeBar).toHaveBeenCalledWith(new BarQuantity(1));
-    expect(mockedWait).toHaveBeenCalledWith(5000 / WORLD_SPEED);
+    expect(factory.wait).toHaveBeenCalledWith(5000);
   });
 
   it('move to workstation', async () => {
     await robot.moveToIfNeeded(Workstation.SellingFoobar);
 
     expect(robot.currentWorkstation).toBe(Workstation.SellingFoobar);
-    expect(mockedWait).toHaveBeenCalledWith(5000 / WORLD_SPEED);
+    expect(factory.wait).toHaveBeenCalledWith(5000);
   });
 
   it('craft foobar successfully', async () => {
@@ -113,17 +114,16 @@ describe('Robot', () => {
 
   it('sell foobar', async () => {
     // mock private property to have enought stock
+    const quantity = 5;
     Object.defineProperty(factory, 'foobarQuantityAvailableInStock', { get: () => {
-      return new FoobarQuantity(5);
+      return new FoobarQuantity(quantity);
     } });
 
-    await robot.sellFoobar(new FoobarQuantity(5));
+    await robot.sellFoobar(new FoobarQuantity(quantity));
 
-    expect(factory.takeFoobar).toHaveBeenCalledWith(new FoobarQuantity(5));
-    expect(factory.makeDeposit).toHaveBeenCalledWith(FOOBAR_SELLING_PRICE);
-    expect(mockedWait).toHaveBeenCalledWith(10000 / WORLD_SPEED);
-    expect(factory.makeDeposit).toHaveBeenCalledWith(1);
-
+    expect(factory.takeFoobar).toHaveBeenCalledWith(new FoobarQuantity(quantity));
+    expect(factory.makeDeposit).toHaveBeenCalledWith(FOOBAR_SELLING_PRICE * quantity);
+    expect(factory.wait).toHaveBeenCalledWith(10000);
   });
 
   it('buy robot', async () => {

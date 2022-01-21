@@ -6,11 +6,9 @@ import { Workstation } from './workstation';
 import { Factory, FactoryEvents } from './factory';
 
 import { getRandomIntInclusive } from './math/random-between';
-import { wait } from './wait';
 import { nicknames } from 'memorable-moniker';
 
 import {
-  WORLD_SPEED,
   QUANTITY_OF_BAR_REQUIRED_TO_CRAFT_FOOBAR,
   QUANTITY_OF_FOO_REQUIRED_TO_CRAFT_FOOBAR,
   FOOBAR_SELLING_PRICE,
@@ -25,12 +23,12 @@ export enum Status {
 
 export class Robot {
   // Duration parameters, depend on robot characterics (bigger robots might work faster)
-  private static readonly MOVE_DURATION_IN_MS = (5 * 1000) / WORLD_SPEED;
-  private static readonly FOO_MINING_DURATION_IN_MS = (1 * 1000) / WORLD_SPEED;
-  private static readonly BAR_MINING_DURATION_MIN_IN_MS = (0.5 * 1000) / WORLD_SPEED;
-  private static readonly BAR_MINING_DURATION_MAX_IN_MS = (2 * 1000) / WORLD_SPEED;
-  private static readonly FOOBAR_CRAFTING_DURATION_IN_MS = (2 * 1000) / WORLD_SPEED;
-  private static readonly FOOBAR_SELLING_DURATION_IN_MS = (10 * 1000) / WORLD_SPEED;
+  private static readonly MOVE_DURATION_IN_MS = (5 * 1000);
+  private static readonly FOO_MINING_DURATION_IN_MS = (1 * 1000);
+  private static readonly BAR_MINING_DURATION_MIN_IN_MS = (0.5 * 1000);
+  private static readonly BAR_MINING_DURATION_MAX_IN_MS = (2 * 1000);
+  private static readonly FOOBAR_CRAFTING_DURATION_IN_MS = (2 * 1000);
+  private static readonly FOOBAR_SELLING_DURATION_IN_MS = (10 * 1000);
   private static readonly FOOBAR_CRAFTING_CHANCES = 60 / 100; // 60 %
   private static readonly QUANTIY_OF_FOO_PER_MINING_OPERATION = 1;
   private static readonly QUANTIY_OF_BAR_PER_MINING_OPERATION = 1;
@@ -65,7 +63,9 @@ export class Robot {
 
   private operationCompleted() {
     this._status = Status.Available;
-    this.factory.emit(FactoryEvents.RobotAvailable, this);
+    process.nextTick(() => {
+      this.factory.emit(FactoryEvents.RobotAvailable, this);
+    });
   }
 
   /**
@@ -127,8 +127,8 @@ export class Robot {
     if (foobarSellable > 0) {
       this.factory.takeFoobar(new FoobarQuantity(foobarSellable));
       const sellingDuration = Math.ceil(foobarSellable / 5) * Robot.FOOBAR_SELLING_DURATION_IN_MS;
-      await wait(sellingDuration);
-      this.factory.makeDeposit(FOOBAR_SELLING_PRICE);
+      await this.factory.wait(sellingDuration);
+      this.factory.makeDeposit(FOOBAR_SELLING_PRICE * foobarSellable);
     }
     this.operationCompleted();
   }
@@ -153,14 +153,14 @@ export class Robot {
       this.factory.emit(FactoryEvents.RobotMoving, this, workstationToMoveTo);
 
       this._currentWorkstation = Workstation.Moving;
-      await wait(Robot.MOVE_DURATION_IN_MS);
+      await this.factory.wait(Robot.MOVE_DURATION_IN_MS);
 
       this._currentWorkstation = workstationToMoveTo;
     }
   }
 
   private async _mineFoo() {
-    await wait(Robot.FOO_MINING_DURATION_IN_MS);
+    await this.factory.wait(Robot.FOO_MINING_DURATION_IN_MS);
     return new FooQuantity(Robot.QUANTIY_OF_FOO_PER_MINING_OPERATION);
   }
 
@@ -169,7 +169,7 @@ export class Robot {
       Robot.BAR_MINING_DURATION_MIN_IN_MS,
       Robot.BAR_MINING_DURATION_MAX_IN_MS,
     );
-    await wait(miningDuration);
+    await this.factory.wait(miningDuration);
     return new BarQuantity(Robot.QUANTIY_OF_BAR_PER_MINING_OPERATION);
   }
 
@@ -178,7 +178,7 @@ export class Robot {
    * @returns {boolean} true if success
    */
   private async _craftFoobar() {
-    await wait(Robot.FOOBAR_CRAFTING_DURATION_IN_MS);
+    await this.factory.wait(Robot.FOOBAR_CRAFTING_DURATION_IN_MS);
     return Math.random() <= Robot.FOOBAR_CRAFTING_CHANCES;
   }
 }

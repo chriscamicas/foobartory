@@ -1,10 +1,12 @@
 import { EventEmitter } from 'stream';
 import { BankAccount } from './bank-account';
+import { Clock } from './clock';
 import { Robot } from './robot';
 import { BarQuantity } from './stock/bar-quantity';
 import { FooQuantity } from './stock/foo-quantity';
 import { FoobarQuantity } from './stock/foobar-quantity';
 import { Stock } from './stock/stock';
+import { INITIAL_NUMBER_OF_ROBOTS } from './world-parameters';
 
 export enum FactoryEvents {
   FooStockAvailable = 'foo-stock-available',
@@ -25,16 +27,20 @@ export class Factory extends EventEmitter {
     private barStock: Stock<BarQuantity>,
     private foobarStock: Stock<FoobarQuantity>,
     private bankAccount: BankAccount,
+    public clock: Clock,
   ) {
     super();
   }
 
   /**
-   * Start the factory with 2 robots
+   * Start the factory with initial robots
    */
   public start() {
-    this.addNewRobot();
-    this.addNewRobot();
+    let initialRobotCount = INITIAL_NUMBER_OF_ROBOTS;
+    while (initialRobotCount > 0) {
+      this.addNewRobot();
+      initialRobotCount--;
+    }
   }
 
   public get robots() {
@@ -104,6 +110,11 @@ export class Factory extends EventEmitter {
   }
   public get balance() {
     return this.bankAccount.balance;
+  }
+
+
+  public wait(timeToWaitInMs: number) {
+    this.clock.wait(timeToWaitInMs);
   }
 
   public addNewRobot() {

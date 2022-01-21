@@ -39,6 +39,30 @@ Especially:
 - `test` - run tests,
 - `test:watch` - interactive watch mode to automatically re-run tests
 
+## Using the NeuroEvoluton Strategy
+TfStrategy uses a neural network to make decision and assign robots to the best operation.
+
+The neural network has 2 denses layers:
+- input (6 values) : the current state of the factory (foo, bar, foobar stock, money balance, # of robots) and current workstation
+- middle layer: 16 nodes fully connected
+- output layer (5 values): a score applied to the possible operation, the best score is used to assign the operation
+
+### Training
+To start the training use
+```npm run train```
+
+You can load the previous best saved model or start with a random one (randomNormal initialization).
+The training is based on neuroevolution, [here is a talk (FR)](https://www.youtube.com/watch?v=XbrgDBWCPtE) I gave on this particular neural network training.
+
+Basically, we fire a bunch of TfStrategies, aka individuals, with different genes (aka parameters, aka model weights). They are the first-gen.
+
+At the end of every 'run', we either have a winner (30 robots at least), or reached a timeout.
+We compute a score based on the state of the factory (stock quantity, balance, # of robots, and total time spent). We keep the top best strategies based on this score, and create a new generation based on them.
+
+To create the new individuals, we keep the last best ones, and reproduce (give birth) using crossover and mutation.
+- crossover: keep half of each parent genes (= model weights)
+- mutation: change random weights in the child 'to explore new possibilities'
+
 ## TODO
 - Better UI in the terminal, ex: https://github.com/cronvel/terminal-kit
 - Add Typed Event: https://basarat.gitbook.io/typescript/main-1/typed-event

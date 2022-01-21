@@ -8,31 +8,39 @@ import {
   QUANTITY_OF_FOO_REQUIRED_TO_BUY_ROBOT,
   QUANTITY_OF_FOO_REQUIRED_TO_CRAFT_FOOBAR,
 } from './world-parameters';
+import { nicknames } from 'memorable-moniker';
 
 export abstract class ProductionStrategy {
   private _stopAllOperation = false;
+  public name = nicknames.next();
 
-  constructor(protected factory: Factory) {
+  constructor(protected factory: Factory) {}
+
+  public async initialize() {
+    // overridable
   }
 
+  stop() {
+    this._stopAllOperation = true;
+  }
   get stopAllOperation() {
     return this._stopAllOperation;
   }
   async runUntilWin() {
-    this.factory.start();
-    return new Promise<string>((resolve) => {
+    const promiseWin = new Promise<string>((resolve) => {
       this.factory.on(FactoryEvents.NewRobotBought, () => {
-        if (this.factory.robots.length >= 30){
-          this._stopAllOperation = true;
-          resolve('victory !');
+        if (this.factory.robots.length >= 30) {
+          this.stop();
+          resolve(`${this.name} => victory in ${this.factory.clock.getCumulativeTimeSpent()}`);
         }
       });
     });
+    this.factory.start();
+    return promiseWin;
   }
 }
 
 export class BasicStrategy extends ProductionStrategy {
-
   constructor(factory: Factory) {
     super(factory);
     this.factory.on(FactoryEvents.RobotAvailable, (robot) => this.assignRobot(robot));
@@ -46,7 +54,7 @@ export class BasicStrategy extends ProductionStrategy {
    * - else go mine foo or bar randomly
    */
   async assignRobot(robot: Robot) {
-    if(this.stopAllOperation) return;
+    if (this.stopAllOperation) return;
 
     const fooRequiredToBuyARobot = new FooQuantity(QUANTITY_OF_FOO_REQUIRED_TO_BUY_ROBOT);
 
@@ -67,9 +75,7 @@ export class BasicStrategy extends ProductionStrategy {
   }
 }
 
-
 export class RandomStrategy extends ProductionStrategy {
-
   constructor(factory: Factory) {
     super(factory);
     this.factory.on(FactoryEvents.RobotAvailable, (robot) => this.assignRobot(robot));
@@ -80,10 +86,10 @@ export class RandomStrategy extends ProductionStrategy {
    * - pick a number between 1 and 5 included, and assign the robot to the corresponding operation
    */
   async assignRobot(robot: Robot) {
-    if(this.stopAllOperation) return;
+    if (this.stopAllOperation) return;
 
     const operation = getRandomIntInclusive(1, 5);
-    switch(operation) {
+    switch (operation) {
       case 1:
         await robot.mineAndStoreBar();
         break;
