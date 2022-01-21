@@ -167,7 +167,7 @@ export class TfStrategy extends ProductionStrategy {
   // }
 
   mutate(rate = 0.1) {
-    // const rate = 0.1;
+    let nbOfMutations = 0;
     tf.tidy(() => {
       const weights = this.model.getWeights();
       const mutatedWeights = [];
@@ -177,10 +177,9 @@ export class TfStrategy extends ProductionStrategy {
         const values = tensor.dataSync().slice();
         for (let j = 0; j < values.length; j++) {
           if (Math.random() < rate) {
-            // const w = values[j];
             const mutated = tf.randomNormal([1]).dataSync()[0]; //actual mutation
-            // console.log(`mutation from ${w} to ${mutated}`);
             values[j] = mutated;
+            nbOfMutations++;
           }
         }
         const newTensor = tf.tensor(values, shape);
@@ -188,6 +187,7 @@ export class TfStrategy extends ProductionStrategy {
       }
       this.model.setWeights(mutatedWeights);
     });
+    return nbOfMutations;
   }
 
   crossover(otherStrategy: TfStrategy) {

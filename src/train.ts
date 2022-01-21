@@ -13,6 +13,8 @@ import fs = require('fs');
 import { getYesNo } from 'cli-interact';
 
 const POPULATION_SIZE = 30;
+const BEST_POPULATION_RATE_TO_KEEP = 0.1;
+const MUTATION_RATE = 0.05;
 const TRAINING_ITERATION_TIMEOUT = 5 * 1000;
 const DEBUG_TRAINING = false;
 
@@ -20,7 +22,6 @@ let population: TfStrategy[] = [];
 let gen = 0;
 let stop = false;
 const modelPath = path.join(__dirname, '../../model');
-
 
 function createIndividual(strategyToCopy?: TfStrategy) {
   const fooStock = new Stock(FooQuantity);
@@ -59,7 +60,7 @@ function createIndividual(strategyToCopy?: TfStrategy) {
 }
 
 function createNewGeneration() {
-  console.log(`gen ${++gen} starting ...`);
+  console.log(`Creating generation #${++gen}...`);
 
   if (population.length === 0) {
     for (let i = 0; i < POPULATION_SIZE; i++) {
@@ -76,18 +77,21 @@ function createNewGeneration() {
     }
   } else {
     const newGen = [];
+    const newGenStats = [];
 
     // keep the 10% best individuals as possible parents
-    const topNumber = Math.floor(population.length * 0.1);
+    const topNumber = Math.floor(population.length * BEST_POPULATION_RATE_TO_KEEP);
     const bestStrategies = population.sort((a, b) => b.score - a.score).slice(0, topNumber);
 
     const totalFitness = bestStrategies.reduce((acc, individual) => acc + individual.score, 0);
 
-    // keep the 2 best individuals in the next generation
-    for (let i = 0; i < 2; i++) {
-      const strategy = bestStrategies[i];
-      const newStrategy = createIndividual(strategy);
-      newStrategy.name = strategy.name;
+    for (const ancestor of bestStrategies) {
+      const newStrategy = createIndividual(ancestor);
+      newStrategy.name = ancestor.name;
+      newGenStats.push({
+        name: newStrategy.name,
+        status: 'clone',
+      });
       newGen.push(newStrategy);
     }
 
@@ -95,21 +99,32 @@ function createNewGeneration() {
     while (newGen.length < POPULATION_SIZE) {
       //Pick a pair
       const pickA = getRandomIntInclusive(0, totalFitness - 1);
-      const pickB = getRandomIntInclusive(0, totalFitness - 1);
       const parentA = roulettePick(bestStrategies, pickA);
-      const parentB = roulettePick(bestStrategies, pickB);
+      let parentB;
+      do {
+        const pickB = getRandomIntInclusive(0, totalFitness - 1);
+        parentB = roulettePick(bestStrategies, pickB);
+      } while (parentB.name == parentA.name);
 
       // Crossover and mutation
       const child = createIndividual(parentA);
       child.crossover(parentB);
-      child.mutate();
+      const nbOfMutations = child.mutate(MUTATION_RATE);
       newGen.push(child);
+      newGenStats.push({
+        name: child.name,
+        status: 'child',
+        parentA: parentA.name,
+        parentB: parentB.name,
+        mutations: nbOfMutations,
+      });
     }
 
     // Dispose old gen
     for (const individual of population) individual.dispose();
 
     population = newGen;
+    console.table(newGenStats);
   }
 }
 
@@ -127,7 +142,7 @@ function roulettePick(parents: TfStrategy[], pick: number) {
 async function startGeneration() {
   createNewGeneration();
 
-  console.log(`let's go`);
+  console.log(`Running simulation #${gen}...`);
 
   const promiseTimeout = new Promise<string>((resolve) => {
     setTimeout(resolve, TRAINING_ITERATION_TIMEOUT, `!!! timeout !!!`);
@@ -135,31 +150,33 @@ async function startGeneration() {
 
   const promises: Promise<string>[] = [];
   for (const individual of population) {
-    // promises.push(individual.run(RUN_TIMEOUT));
     promises.push(individual.runUntilWin());
   }
   promises.push(promiseTimeout);
 
-  const exitCode = await Promise.race(promises);
-
-  console.table(exitCode);
-
-  console.log(`stopping...`);
+  // Run all strategy simultaneously
+  // Stop if timeout is reached
+  await Promise.race(promises);
+  // const exitCode = await Promise.race(promises);
+  // console.table(exitCode);
 
   for (const individual of population) {
     individual.stop();
   }
 
-  console.log('all done');
+  console.log(`Simulation #${gen} done, best individuals are:`);
 
-  const results = population.map((individual) => individual.state).sort((a, b) => b.score - a.score);
-  console.table(results);
+  const topResults = population
+    .map((individual) => individual.state)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 5);
+  console.table(topResults);
 }
 
 // Using a single function to handle multiple signals
 async function handle(signal: string) {
   console.log(`Received ${signal}`);
-  console.log(`stopping at the end of the current generation...`);
+  console.log(`Stopping at the end of the current simulation...`);
   stop = true;
 }
 
@@ -170,13 +187,13 @@ async function saveBest() {
   const bests = population.sort((a, b) => b.score - a.score);
   const best = bests[0];
 
-  console.log(`saving ${best.name} to ${modelPath}`);
+  console.log(`Saving ${best.name} to ${modelPath}`);
   await best.save('file://' + modelPath);
 }
 
 async function loadModel() {
   if (!fs.existsSync(modelPath)) {
-    console.log('no previous model found');
+    console.log('No previous model found');
     return;
   }
   const newIndividual = createIndividual();
@@ -196,16 +213,16 @@ async function loadModel() {
   // load last best model
   const wantToLoad = getYesNo('Do you want to load the latest best strategy ?');
   if (wantToLoad) {
-    console.log('loading last best model');
+    console.log('Loading last best model');
     await loadModel();
-    console.log('loading done');
+    console.log('Model loaded successfully');
   }
 
   while (!stop) {
     await startGeneration();
   }
-  console.log('saving best model');
+  console.log('Saving best model');
   const wantToSave = getYesNo('Do you want to save the best strategy ?');
   if (wantToSave) await saveBest();
-  console.log('saving done');
+  console.log('Saving done');
 })();
